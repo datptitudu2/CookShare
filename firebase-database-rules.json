@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "foods": {
+      ".read": true,
+      ".write": false
+    },
+    "recipes": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "users": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    },
+    "favorites": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    },
+    "searchHistory": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    }
+  }
+}
+

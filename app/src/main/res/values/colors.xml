@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- CookShare Theme Colors -->
+    <color name="primary_color">#FF6B35</color>
+    <color name="primary_dark">#E55A2B</color>
+    <color name="accent_color">#FFD23F</color>
+    <color name="background_color">#FFF8F5</color>
+    <color name="surface_color">#FFFFFF</color>
+    <color name="text_primary">#2C2C2C</color>
+    <color name="text_secondary">#757575</color>
+    <color name="error_color">#F44336</color>
+    <color name="success_color">#4CAF50</color>
+    <color name="background_secondary">#F5F5F5</color>
+</resources>
