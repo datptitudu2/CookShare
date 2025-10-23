@@ -1,11 +1,14 @@
 package com.example.cookshare.fragments;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -15,9 +18,9 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.example.cookshare.R;
 import com.example.cookshare.models.Recipe;
-import com.example.cookshare.viewmodels.RecipeViewModel;
+import com.example.cookshare.viewmodels.AddRecipeViewModel;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
@@ -30,20 +33,22 @@ import java.util.List;
 
 public class AddRecipeFragment extends Fragment {
 
-    private RecipeViewModel recipeViewModel;
-    private CircularProgressIndicator progressIndicator;
+    private AddRecipeViewModel addRecipeViewModel;
 
     // Form fields
     private TextInputEditText titleEditText;
     private TextInputEditText descriptionEditText;
-    private TextInputEditText prepTimeEditText;
     private TextInputEditText cookTimeEditText;
-    private TextInputEditText servingsEditText;
     private TextInputEditText ingredientsEditText;
     private TextInputEditText instructionsEditText;
-    private MaterialAutoCompleteTextView difficultySpinner;
     private MaterialAutoCompleteTextView categorySpinner;
     private MaterialButton submitButton;
+    private ImageButton backButton;
+    private MaterialCardView uploadImageCard;
+
+    // State containers
+    private View loadingContainer;
+    private View successContainer;
 
     public AddRecipeFragment() {
         // Required empty public constructor
@@ -56,7 +61,7 @@ public class AddRecipeFragment extends Fragment {
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
-            Bundle savedInstanceState) {
+                             Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_add_recipe, container, false);
     }
 
@@ -65,7 +70,7 @@ public class AddRecipeFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         // Initialize ViewModel
-        recipeViewModel = new ViewModelProvider(this).get(RecipeViewModel.class);
+        addRecipeViewModel = new ViewModelProvider(this).get(AddRecipeViewModel.class);
 
         // Initialize UI components
         initializeViews(view);
@@ -81,29 +86,24 @@ public class AddRecipeFragment extends Fragment {
     }
 
     private void initializeViews(View view) {
-        progressIndicator = view.findViewById(R.id.progressIndicator);
         titleEditText = view.findViewById(R.id.titleEditText);
         descriptionEditText = view.findViewById(R.id.descriptionEditText);
-        prepTimeEditText = view.findViewById(R.id.prepTimeEditText);
         cookTimeEditText = view.findViewById(R.id.cookTimeEditText);
-        servingsEditText = view.findViewById(R.id.servingsEditText);
         ingredientsEditText = view.findViewById(R.id.ingredientsEditText);
         instructionsEditText = view.findViewById(R.id.instructionsEditText);
-        difficultySpinner = view.findViewById(R.id.difficultySpinner);
         categorySpinner = view.findViewById(R.id.categorySpinner);
         submitButton = view.findViewById(R.id.submitButton);
+        backButton = view.findViewById(R.id.backButton);
+        uploadImageCard = view.findViewById(R.id.uploadImageCard);
+
+        // State containers
+        loadingContainer = view.findViewById(R.id.loadingContainer);
+        successContainer = view.findViewById(R.id.successContainer);
     }
 
     private void setupForm() {
-        // Setup difficulty spinner
-        String[] difficultyOptions = { "Dễ", "Trung bình", "Khó" };
-        ArrayAdapter<String> difficultyAdapter = new ArrayAdapter<>(getContext(),
-                android.R.layout.simple_dropdown_item_1line, difficultyOptions);
-        difficultySpinner.setAdapter(difficultyAdapter);
-
         // Setup category spinner
-        String[] categoryOptions = { "Món chính", "Món phụ", "Canh", "Món nướng", "Chiên", "Hấp", "Tráng miệng",
-                "Đồ uống" };
+        String[] categoryOptions = {"Món chính", "Món phụ", "Canh", "Món nướng", "Chiên", "Hấp", "Tráng miệng", "Đồ uống"};
         ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(getContext(),
                 android.R.layout.simple_dropdown_item_1line, categoryOptions);
         categorySpinner.setAdapter(categoryAdapter);
@@ -115,6 +115,17 @@ public class AddRecipeFragment extends Fragment {
                 createRecipe();
             }
         });
+
+        backButton.setOnClickListener(v -> {
+            if (getActivity() != null) {
+                getActivity().onBackPressed();
+            }
+        });
+
+        uploadImageCard.setOnClickListener(v -> {
+            // TODO: Implement image picker
+            Toast.makeText(getContext(), "Chức năng chọn ảnh đang phát triển", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private boolean validateForm() {
@@ -122,31 +133,19 @@ public class AddRecipeFragment extends Fragment {
 
         // Validate title
         if (TextUtils.isEmpty(titleEditText.getText())) {
-            titleEditText.setError("Vui lòng nhập tên công thức");
+            titleEditText.setError("Vui lòng nhập tên món ăn");
             isValid = false;
         }
 
         // Validate description
         if (TextUtils.isEmpty(descriptionEditText.getText())) {
-            descriptionEditText.setError("Vui lòng nhập mô tả công thức");
-            isValid = false;
-        }
-
-        // Validate prep time
-        if (TextUtils.isEmpty(prepTimeEditText.getText())) {
-            prepTimeEditText.setError("Vui lòng nhập thời gian chuẩn bị");
+            descriptionEditText.setError("Vui lòng nhập mô tả");
             isValid = false;
         }
 
         // Validate cook time
         if (TextUtils.isEmpty(cookTimeEditText.getText())) {
             cookTimeEditText.setError("Vui lòng nhập thời gian nấu");
-            isValid = false;
-        }
-
-        // Validate servings
-        if (TextUtils.isEmpty(servingsEditText.getText())) {
-            servingsEditText.setError("Vui lòng nhập số người ăn");
             isValid = false;
         }
 
@@ -158,13 +157,7 @@ public class AddRecipeFragment extends Fragment {
 
         // Validate instructions
         if (TextUtils.isEmpty(instructionsEditText.getText())) {
-            instructionsEditText.setError("Vui lòng nhập hướng dẫn nấu");
-            isValid = false;
-        }
-
-        // Validate difficulty
-        if (TextUtils.isEmpty(difficultySpinner.getText())) {
-            difficultySpinner.setError("Vui lòng chọn độ khó");
+            instructionsEditText.setError("Vui lòng nhập các bước nấu");
             isValid = false;
         }
 
@@ -193,12 +186,14 @@ public class AddRecipeFragment extends Fragment {
         recipe.setTitle(titleEditText.getText().toString().trim());
         recipe.setDescription(descriptionEditText.getText().toString().trim());
         recipe.setAuthorId(currentUser.getUid());
-        recipe.setAuthorName(
-                currentUser.getDisplayName() != null ? currentUser.getDisplayName() : currentUser.getEmail());
-        recipe.setPrepTime(Integer.parseInt(prepTimeEditText.getText().toString()));
-        recipe.setCookTime(Integer.parseInt(cookTimeEditText.getText().toString()));
-        recipe.setServings(Integer.parseInt(servingsEditText.getText().toString()));
-        recipe.setDifficulty(difficultySpinner.getText().toString());
+        recipe.setAuthorName(currentUser.getDisplayName() != null ? currentUser.getDisplayName() : currentUser.getEmail());
+
+        // Parse cook time
+        int cookTime = Integer.parseInt(cookTimeEditText.getText().toString());
+        recipe.setPrepTime(0); // Default prep time
+        recipe.setCookTime(cookTime);
+        recipe.setServings(4); // Default servings
+        recipe.setDifficulty("Trung bình"); // Default difficulty
 
         // Set categories
         List<String> categories = new ArrayList<>();
@@ -234,31 +229,40 @@ public class AddRecipeFragment extends Fragment {
         recipe.setImageUrl("https://via.placeholder.com/300x200?text=Recipe+Image");
 
         // Create recipe in Firebase
-        recipeViewModel.createRecipe(recipe);
+        addRecipeViewModel.createRecipe(recipe);
     }
 
     private void observeData() {
-        // Observe loading state
-        recipeViewModel.getLoadingLiveData().observe(getViewLifecycleOwner(), isLoading -> {
-            if (isLoading) {
+        // Observe uploading state
+        addRecipeViewModel.getIsUploading().observe(getViewLifecycleOwner(), isUploading -> {
+            if (isUploading != null && isUploading) {
                 showLoading();
             } else {
                 hideLoading();
             }
         });
 
-        // Observe errors
-        recipeViewModel.getErrorLiveData().observe(getViewLifecycleOwner(), error -> {
-            if (error != null) {
-                showError(error);
-                recipeViewModel.clearError();
+        // Observe upload message (errors)
+        addRecipeViewModel.getUploadMessage().observe(getViewLifecycleOwner(), message -> {
+            if (message != null && message.startsWith("Lỗi:")) {
+                showError(message);
+            }
+        });
+
+        // Observe upload success
+        addRecipeViewModel.getUploadSuccess().observe(getViewLifecycleOwner(), success -> {
+            if (success != null && success) {
+                showSuccess();
             }
         });
     }
 
     private void showLoading() {
-        if (progressIndicator != null) {
-            progressIndicator.setVisibility(View.VISIBLE);
+        if (loadingContainer != null) {
+            loadingContainer.setVisibility(View.VISIBLE);
+        }
+        if (successContainer != null) {
+            successContainer.setVisibility(View.GONE);
         }
         if (submitButton != null) {
             submitButton.setEnabled(false);
@@ -267,16 +271,35 @@ public class AddRecipeFragment extends Fragment {
     }
 
     private void hideLoading() {
-        if (progressIndicator != null) {
-            progressIndicator.setVisibility(View.GONE);
+        if (loadingContainer != null) {
+            loadingContainer.setVisibility(View.GONE);
         }
         if (submitButton != null) {
             submitButton.setEnabled(true);
-            submitButton.setText("Tạo công thức");
+            submitButton.setText("Đăng công thức");
         }
     }
 
+    private void showSuccess() {
+        if (loadingContainer != null) {
+            loadingContainer.setVisibility(View.GONE);
+        }
+        if (successContainer != null) {
+            successContainer.setVisibility(View.VISIBLE);
+        }
+        if (submitButton != null) {
+            submitButton.setEnabled(false);
+        }
+
+        // Navigate back after 2 seconds
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (getActivity() != null) {
+                getActivity().onBackPressed();
+            }
+        }, 2000);
+    }
+
     private void showError(String error) {
-        Toast.makeText(getContext(), "Lỗi: " + error, Toast.LENGTH_LONG).show();
+        Toast.makeText(getContext(), error, Toast.LENGTH_LONG).show();
     }
 }

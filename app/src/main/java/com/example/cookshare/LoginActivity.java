@@ -227,11 +227,26 @@ public class LoginActivity extends AppCompatActivity {
             Log.d(TAG, "User signed in: " + user.getEmail());
             Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show();
 
-            // Navigate to MainActivity
-            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            // Get and log ID token for Postman testing (BEFORE navigating)
+            user.getIdToken(false).addOnCompleteListener(task -> {
+                if (task.isSuccessful() && task.getResult() != null) {
+                    String token = task.getResult().getToken();
+                    Log.d(TAG, "========================");
+                    Log.d(TAG, "UID: " + user.getUid());
+                    Log.d(TAG, "Email: " + user.getEmail());
+                    Log.d(TAG, "ID Token for Postman: " + token);
+                    Log.d(TAG,
+                            "GET Profile URL: https://cookshare-88d53-default-rtdb.asia-southeast1.firebasedatabase.app/users/"
+                                    + user.getUid() + ".json?auth=" + token);
+                    Log.d(TAG, "========================");
+                }
+
+                // Navigate to MainActivity AFTER logging token
+                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            });
         } else {
             Log.w(TAG, "User is null in updateUI");
         }

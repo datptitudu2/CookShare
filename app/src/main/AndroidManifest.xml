@@ -32,6 +32,9 @@
         <activity
             android:name=".ChatbotActivity"
             android:exported="false" />
+        <activity
+            android:name=".EditRecipeActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

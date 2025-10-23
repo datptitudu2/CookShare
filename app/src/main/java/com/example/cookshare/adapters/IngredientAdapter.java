@@ -1,15 +1,17 @@
 package com.example.cookshare.adapters;
 
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
-import android.widget.ImageButton;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.cookshare.R;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,8 +76,9 @@ public class IngredientAdapter extends RecyclerView.Adapter<IngredientAdapter.In
     }
 
     class IngredientViewHolder extends RecyclerView.ViewHolder {
-        private EditText ingredientEditText;
-        private ImageButton removeButton;
+        private TextInputEditText ingredientEditText;
+        private MaterialButton removeButton;
+        private TextWatcher textWatcher;
 
         public IngredientViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -84,19 +87,35 @@ public class IngredientAdapter extends RecyclerView.Adapter<IngredientAdapter.In
         }
 
         public void bind(String ingredient, int position) {
+            // Remove previous text watcher to avoid duplicate updates
+            if (textWatcher != null) {
+                ingredientEditText.removeTextChangedListener(textWatcher);
+            }
+
             ingredientEditText.setText(ingredient);
 
             // Show remove button only if there's more than one ingredient
             removeButton.setVisibility(ingredients.size() > 1 ? View.VISIBLE : View.GONE);
 
-            ingredientEditText.setOnFocusChangeListener((v, hasFocus) -> {
-                if (!hasFocus) {
-                    ingredients.set(position, ingredientEditText.getText().toString().trim());
-                    if (listener != null) {
-                        listener.onIngredientChanged();
+            // Add text watcher for real-time updates
+            textWatcher = new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                    if (position < ingredients.size()) {
+                        ingredients.set(position, s.toString().trim());
+                        if (listener != null) {
+                            listener.onIngredientChanged();
+                        }
                     }
                 }
-            });
+            };
+            ingredientEditText.addTextChangedListener(textWatcher);
 
             removeButton.setOnClickListener(v -> removeIngredient(position));
         }

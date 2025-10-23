@@ -22,7 +22,7 @@ public class OpenAIService {
     private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
     // OpenAI API key
-    private static final String API_KEY = "abc"
+    private static final String API_KEY = "sk-proj-abc123";
     private OkHttpClient client;
     private Gson gson;
 

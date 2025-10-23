@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.fragment.app.Fragment;
 
+import com.example.cookshare.fragments.MyRecipesFragment;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import com.example.cookshare.fragments.AddRecipeFragment;
@@ -89,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
                             startActivity(intent);
                             return true;
                         } else if (itemId == R.id.nav_add) {
-                            selectedFragment = new AddRecipeFragment();
+                            selectedFragment = new MyRecipesFragment();
                             title = "Thêm công thức";
                         } else if (itemId == R.id.nav_profile) {
                             selectedFragment = new ProfileFragment();

@@ -1,5 +1,7 @@
 package com.example.cookshare.viewmodels;
 
+import android.util.Log;
+
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
@@ -12,6 +14,7 @@ import com.example.cookshare.services.FirebaseDatabaseService;
  * Created for: Mai Trung Hiếu (Add Recipe)
  */
 public class AddRecipeViewModel extends ViewModel {
+    private static final String TAG = "AddRecipeViewModel";
 
     private FirebaseDatabaseService firebaseService;
     private MutableLiveData<Boolean> isUploading = new MutableLiveData<>();
@@ -20,6 +23,7 @@ public class AddRecipeViewModel extends ViewModel {
 
     public AddRecipeViewModel() {
         firebaseService = new FirebaseDatabaseService();
+        Log.d(TAG, "AddRecipeViewModel initialized");
     }
 
     public LiveData<Boolean> getIsUploading() {
@@ -35,6 +39,7 @@ public class AddRecipeViewModel extends ViewModel {
     }
 
     public void createRecipe(Recipe recipe) {
+        Log.d(TAG, "Creating recipe: " + recipe.getTitle());
         isUploading.setValue(true);
         uploadMessage.setValue("Đang tạo công thức...");
         uploadSuccess.setValue(false);
@@ -42,6 +47,7 @@ public class AddRecipeViewModel extends ViewModel {
         firebaseService.createRecipe(recipe, new FirebaseDatabaseService.RecipeCallback() {
             @Override
             public void onSuccess(String recipeId) {
+                Log.d(TAG, "Recipe created successfully with ID: " + recipeId);
                 isUploading.setValue(false);
                 uploadMessage.setValue("Tạo công thức thành công!");
                 uploadSuccess.setValue(true);
@@ -49,6 +55,7 @@ public class AddRecipeViewModel extends ViewModel {
 
             @Override
             public void onError(String error) {
+                Log.e(TAG, "Failed to create recipe: " + error);
                 isUploading.setValue(false);
                 uploadMessage.setValue("Lỗi: " + error);
                 uploadSuccess.setValue(false);
@@ -57,7 +64,14 @@ public class AddRecipeViewModel extends ViewModel {
     }
 
     public void resetUploadState() {
+        Log.d(TAG, "Resetting upload state");
         uploadSuccess.setValue(false);
         uploadMessage.setValue(null);
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        Log.d(TAG, "AddRecipeViewModel cleared");
     }
 }
