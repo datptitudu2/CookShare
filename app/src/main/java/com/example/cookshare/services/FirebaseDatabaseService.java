@@ -102,10 +102,21 @@ public class FirebaseDatabaseService {
         }
     }
 
-    public void updateRecipe(String recipeId, Recipe recipe) {
+    public void updateRecipe(String recipeId, Recipe recipe, RecipeCallback callback) {
+        recipe.setUpdatedAt(new java.util.Date());
         recipesRef.child(recipeId).setValue(recipe)
-                .addOnSuccessListener(aVoid -> Log.d(TAG, "Recipe updated successfully"))
-                .addOnFailureListener(e -> Log.e(TAG, "Failed to update recipe", e));
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Recipe updated successfully");
+                    if (callback != null) {
+                        callback.onSuccess(recipeId);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to update recipe", e);
+                    if (callback != null) {
+                        callback.onError(e.getMessage());
+                    }
+                });
     }
 
     public void deleteRecipe(String recipeId) {
@@ -210,7 +221,18 @@ public class FirebaseDatabaseService {
 
     // Update user profile with callback
     public void updateUserProfile(UserProfile profile, UserProfileCallback callback) {
-        usersRef.child(profile.getId()).setValue(profile)
+        String userId = profile.getId();
+        if (userId == null || userId.isEmpty()) {
+            // Fallback: lấy UID từ FirebaseAuth
+            if (FirebaseAuth.getInstance().getCurrentUser() != null) {
+                userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+                profile.setId(userId);
+            } else {
+                callback.onError("User ID is null");
+                return;
+            }
+        }
+        usersRef.child(userId).setValue(profile)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "User profile updated successfully");
                     callback.onSuccess(profile);
@@ -220,6 +242,10 @@ public class FirebaseDatabaseService {
                     callback.onError(e.getMessage());
                 });
     }
+
+    // NOTE: Follow/Unfollow features chu kip lam
+    // Co the them sau khi can thiet
+    // Rules da san sang trong Firebase
 
     // Callback interfaces
     public interface RecipeCallback {

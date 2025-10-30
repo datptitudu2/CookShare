@@ -25,6 +25,15 @@ import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ServerValue;
+import com.google.firebase.database.ValueEventListener;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -227,14 +236,94 @@ public class LoginActivity extends AppCompatActivity {
             Log.d(TAG, "User signed in: " + user.getEmail());
             Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show();
 
-            // Navigate to MainActivity
-            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            // Create user profile if not exists
+            createUserProfileIfNotExists(user);
+
+            // Get and log ID token for Postman testing (BEFORE navigating)
+            user.getIdToken(false).addOnCompleteListener(task -> {
+                if (task.isSuccessful() && task.getResult() != null) {
+                    String token = task.getResult().getToken();
+                    Log.d(TAG, "========================");
+                    Log.d(TAG, "UID: " + user.getUid());
+                    Log.d(TAG, "Email: " + user.getEmail());
+                    Log.d(TAG, "ID Token for Postman: " + token);
+                    Log.d(TAG,
+                            "GET Profile URL: https://cookshare-88d53-default-rtdb.asia-southeast1.firebasedatabase.app/users/"
+                                    + user.getUid() + ".json?auth=" + token);
+                    Log.d(TAG, "========================");
+                }
+
+                // Navigate to MainActivity AFTER logging token
+                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            });
         } else {
             Log.w(TAG, "User is null in updateUI");
         }
+    }
+
+    private void createUserProfileIfNotExists(FirebaseUser user) {
+        DatabaseReference userRef = FirebaseDatabase.getInstance()
+                .getReference("users")
+                .child(user.getUid());
+
+        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // Get display name: từ Google hoặc tách từ email
+                String displayName = user.getDisplayName();
+                if (displayName == null || displayName.isEmpty()) {
+                    // Tách email: "dattk@gmail.com" -> "Dattk"
+                    String email = user.getEmail();
+                    if (email != null && email.contains("@")) {
+                        displayName = email.substring(0, email.indexOf("@"));
+                        // Viết hoa chữ cái đầu
+                        displayName = displayName.substring(0, 1).toUpperCase() + displayName.substring(1);
+                    } else {
+                        displayName = "User";
+                    }
+                }
+
+                if (!snapshot.exists()) {
+                    // Profile doesn't exist, create it
+                    Map<String, Object> userProfile = new HashMap<>();
+                    userProfile.put("uid", user.getUid());
+                    userProfile.put("email", user.getEmail());
+                    userProfile.put("displayName", displayName);
+                    userProfile.put("photoUrl", user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : "");
+                    userProfile.put("bio", "");
+                    userProfile.put("recipesCount", 0);
+                    userProfile.put("favoritesCount", 0);
+                    userProfile.put("followersCount", 0);
+                    userProfile.put("followingCount", 0);
+
+                    userRef.setValue(userProfile)
+                            .addOnSuccessListener(aVoid -> Log.d(TAG, "User profile created successfully"))
+                            .addOnFailureListener(e -> Log.e(TAG, "Failed to create user profile", e));
+                } else {
+                    // Profile exists, check if displayName is missing or "User"
+                    String existingDisplayName = snapshot.child("displayName").getValue(String.class);
+                    if (existingDisplayName == null || existingDisplayName.equals("User")
+                            || existingDisplayName.isEmpty()) {
+                        // Update displayName
+                        Map<String, Object> updates = new HashMap<>();
+                        updates.put("displayName", displayName);
+                        userRef.updateChildren(updates)
+                                .addOnSuccessListener(aVoid -> Log.d(TAG, "User profile displayName updated"))
+                                .addOnFailureListener(e -> Log.e(TAG, "Failed to update displayName", e));
+                    } else {
+                        Log.d(TAG, "User profile already has displayName: " + existingDisplayName);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e(TAG, "Error checking user profile", error.toException());
+            }
+        });
     }
 
     private void showProgress(boolean show) {

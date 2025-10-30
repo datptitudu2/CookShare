@@ -1,9 +1,11 @@
 package com.example.cookshare.fragments;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,6 +13,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.lifecycle.ViewModelProvider;
+import com.example.cookshare.models.UserProfile;
+import com.example.cookshare.viewmodels.ProfileViewModel;
+import com.example.cookshare.adapters.EditProfileActivity;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -30,8 +39,15 @@ public class ProfileFragment extends Fragment {
     private FirebaseAuth mAuth;
     private TextView profileName;
     private TextView profileEmail;
-    private ShapeableImageView profileAvatar;
+    private TextView recipeCount, likeCount;
+    private TextView statDays, statFollowers, statFollowing;
+
+    private ImageView profileAvatar;
+    private ProfileViewModel viewModel;
+    private UserProfile currentUserProfile;
+    private ActivityResultLauncher<Intent> editProfileLauncher;
     private View loadingContainer;
+    private LinearLayout editProfileCard;
 
     public ProfileFragment() {
         // Required empty public constructor
@@ -41,6 +57,16 @@ public class ProfileFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mAuth = FirebaseAuth.getInstance();
+        viewModel = new ViewModelProvider(this).get(ProfileViewModel.class);
+        editProfileLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK) {
+                        // Người dùng đã lưu thành công, tải lại dữ liệu
+                        Toast.makeText(getContext(), "Đang cập nhật hồ sơ...", Toast.LENGTH_SHORT).show();
+                        loadDataFromViewModel();
+                    }
+                });
     }
 
     @Override
@@ -58,7 +84,12 @@ public class ProfileFragment extends Fragment {
 
         // Initialize profile functionality
         setupClickListeners(view);
-        updateUserInfo();
+
+        // Setup Observers để lắng nghe dữ liệu từ ViewModel
+        setupObservers();
+
+        // Tải dữ liệu
+        loadDataFromViewModel();
     }
 
     private void initializeViews(View view) {
@@ -66,26 +97,129 @@ public class ProfileFragment extends Fragment {
         profileEmail = view.findViewById(R.id.profileEmail);
         profileAvatar = view.findViewById(R.id.profileAvatar);
         loadingContainer = view.findViewById(R.id.loadingContainer);
+        editProfileCard = view.findViewById(R.id.editProfileCard);
+
+        // Thêm các view khác từ layout
+        recipeCount = view.findViewById(R.id.recipeCount);
+        likeCount = view.findViewById(R.id.likeCount);
+        statDays = view.findViewById(R.id.statDays);
+        statFollowers = view.findViewById(R.id.statFollowers);
+        statFollowing = view.findViewById(R.id.statFollowing);
+    }
+
+    private void loadDataFromViewModel() {
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser != null) {
+            String userId = currentUser.getUid();
+            // Gọi ViewModel tải profile VÀ recipes
+            viewModel.loadUserProfile(userId);
+            viewModel.loadUserRecipes(userId);
+        }
+    }
+
+    private void setupObservers() {
+        // Quan sát trạng thái loading
+        viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
+            if (isLoading != null && isLoading) {
+                loadingContainer.setVisibility(View.VISIBLE);
+            } else {
+                loadingContainer.setVisibility(View.GONE);
+            }
+        });
+
+        // Quan sát lỗi
+        viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
+            if (error != null) {
+                Toast.makeText(getContext(), "Lỗi: " + error, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Quan sát user profile
+        viewModel.getUserProfile().observe(getViewLifecycleOwner(), profile -> {
+            if (profile != null) {
+                this.currentUserProfile = profile;
+                updateProfileUI(profile);
+            }
+        });
+
+        // Note: Số công thức hiển thị từ profile.getRecipesCount() thay vì đếm recipes
+        // vì getUserRecipes() trả về TẤT CẢ recipes trong app, không phải của user
+    }
+
+    private void updateProfileUI(UserProfile profile) {
+        if (profileName != null) {
+            profileName.setText(profile.getFullName() != null ? profile.getFullName() : "Người dùng");
+        }
+
+        if (profileEmail != null) {
+            profileEmail.setText(profile.getEmail() != null ? profile.getEmail() : "Không có email");
+        }
+
+        // Cập nhật các thống kê
+        if (recipeCount != null) {
+            recipeCount.setText(profile.getRecipesCount() + " công thức");
+        }
+
+        if (likeCount != null) {
+            likeCount.setText(profile.getFavoritesCount() + " yêu thích");
+        }
+
+        // Cập nhật stats lớn (24, 156, 89)
+        if (statDays != null) {
+            statDays.setText(String.valueOf(profile.getRecipesCount()));
+        }
+
+        if (statFollowers != null) {
+            statFollowers.setText(String.valueOf(profile.getFollowersCount()));
+        }
+
+        if (statFollowing != null) {
+            statFollowing.setText(String.valueOf(profile.getFollowingCount()));
+        }
+
+        // Load ảnh đại diện
+        if (getContext() != null && profileAvatar != null) {
+            Glide.with(this)
+                    .load(profile.getAvatarUrl())
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .placeholder(android.R.drawable.ic_menu_gallery)
+                    .error(android.R.drawable.ic_menu_gallery)
+                    .circleCrop()
+                    .into(profileAvatar);
+        }
     }
 
     private void setupClickListeners(View view) {
-        // Logout button click listener
+        // Logout
         LinearLayout logoutCard = view.findViewById(R.id.logoutCard);
         if (logoutCard != null) {
             logoutCard.setOnClickListener(v -> showLogoutDialog());
         }
 
-        // Edit profile click listener
+        // Edit profile - CODE MỚI CÓ LAUNCH ACTIVITY
         LinearLayout editProfileCard = view.findViewById(R.id.editProfileCard);
         if (editProfileCard != null) {
             editProfileCard.setOnClickListener(v -> {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Chức năng chỉnh sửa hồ sơ sẽ được thêm sau", Toast.LENGTH_SHORT).show();
+                Log.d("ProfileFragment", "Edit profile clicked");
+                Log.d("ProfileFragment", "currentUserProfile: "
+                        + (currentUserProfile != null ? currentUserProfile.getFullName() : "NULL"));
+
+                if (currentUserProfile != null) {
+                    Log.d("ProfileFragment", "Launching EditProfileActivity");
+                    Intent intent = new Intent(getContext(), EditProfileActivity.class);
+                    intent.putExtra(EditProfileActivity.EXTRA_USER_PROFILE, currentUserProfile);
+                    editProfileLauncher.launch(intent);
+                } else {
+                    Log.d("ProfileFragment", "currentUserProfile is null!");
+                    Toast.makeText(getContext(), "Đang tải dữ liệu hồ sơ, vui lòng thử lại sau", Toast.LENGTH_SHORT)
+                            .show();
                 }
             });
+        } else {
+            Log.e("ProfileFragment", "editProfileCard NOT FOUND!");
         }
 
-        // Favorites click listener
+        // Favorites
         LinearLayout favoritesCard = view.findViewById(R.id.favoritesCard);
         if (favoritesCard != null) {
             favoritesCard.setOnClickListener(v -> {
@@ -95,17 +229,18 @@ public class ProfileFragment extends Fragment {
             });
         }
 
-        // My recipes click listener
+        // My recipes
         LinearLayout myRecipesCard = view.findViewById(R.id.myRecipesCard);
         if (myRecipesCard != null) {
             myRecipesCard.setOnClickListener(v -> {
                 if (getContext() != null) {
-                    Toast.makeText(getContext(), "Chức năng lịch sử nấu ăn sẽ được thêm sau", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getContext(), "Chức năng lịch sử nấu ăn sẽ được thêm sau", Toast.LENGTH_SHORT)
+                            .show();
                 }
             });
         }
 
-        // Settings click listener
+        // Settings
         LinearLayout settingsCard = view.findViewById(R.id.settingsCard);
         if (settingsCard != null) {
             settingsCard.setOnClickListener(v -> {
@@ -114,104 +249,11 @@ public class ProfileFragment extends Fragment {
                 }
             });
         }
-
-        // Add Recipe button
-        MaterialCardView addRecipeCard = view.findViewById(R.id.addRecipeCard);
-        if (addRecipeCard != null) {
-            addRecipeCard.setOnClickListener(v -> {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Chức năng thêm công thức sẽ được thêm sau", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        // Saved Recipes button
-        MaterialCardView savedRecipesCard = view.findViewById(R.id.savedRecipesCard);
-        if (savedRecipesCard != null) {
-            savedRecipesCard.setOnClickListener(v -> {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Chức năng công thức đã lưu sẽ được thêm sau", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        // Achievements click listener
-        LinearLayout achievementsCard = view.findViewById(R.id.achievementsCard);
-        if (achievementsCard != null) {
-            achievementsCard.setOnClickListener(v -> {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Chức năng thành tích sẽ được thêm sau", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        // View all recipes
-        TextView viewAllRecipes = view.findViewById(R.id.viewAllRecipes);
-        if (viewAllRecipes != null) {
-            viewAllRecipes.setOnClickListener(v -> {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "Xem tất cả công thức", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-    }
-
-    private void updateUserInfo() {
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser != null) {
-            // Update user name
-            String displayName = currentUser.getDisplayName();
-            if (displayName != null && !displayName.isEmpty() && profileName != null) {
-                profileName.setText(displayName);
-            } else if (profileName != null) {
-                profileName.setText("Người dùng");
-            }
-
-            // Update email
-            String email = currentUser.getEmail();
-            if (email != null && !email.isEmpty() && profileEmail != null) {
-                profileEmail.setText(email);
-            } else if (profileEmail != null) {
-                profileEmail.setText("Đầu bếp nghiệp dư");
-            }
-
-            // Load profile photo
-            loadProfilePhoto(currentUser);
-
-            if (getContext() != null) {
-                String welcomeMessage = displayName != null ? "Chào mừng " + displayName : "Chào mừng";
-                Toast.makeText(getContext(), welcomeMessage, Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    private void loadProfilePhoto(FirebaseUser user) {
-        if (user == null || profileAvatar == null || getContext() == null) {
-            return;
-        }
-
-        Uri photoUrl = user.getPhotoUrl();
-
-        if (photoUrl != null) {
-            // Load ảnh từ Firebase Auth profile
-            Glide.with(this)
-                    .load(photoUrl)
-                    .diskCacheStrategy(DiskCacheStrategy.ALL)
-                    .placeholder(R.drawable.ic_default_avatar) // Ảnh mặc định khi đang tải
-                    .error(R.drawable.ic_default_avatar) // Ảnh mặc định khi lỗi
-                    .circleCrop() // Cắt thành hình tròn
-                    .into(profileAvatar);
-        } else {
-            // Nếu không có ảnh, hiển thị ảnh mặc định
-            Glide.with(this)
-                    .load(R.drawable.ic_default_avatar)
-                    .circleCrop()
-                    .into(profileAvatar);
-        }
     }
 
     private void showLogoutDialog() {
-        if (getContext() == null) return;
+        if (getContext() == null)
+            return;
 
         new AlertDialog.Builder(getContext())
                 .setTitle("Đăng xuất")
@@ -227,7 +269,6 @@ public class ProfileFragment extends Fragment {
         if (getContext() != null) {
             Toast.makeText(getContext(), "Đã đăng xuất thành công!", Toast.LENGTH_SHORT).show();
 
-            // Redirect to LoginActivity
             Intent intent = new Intent(getContext(), LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
@@ -241,7 +282,6 @@ public class ProfileFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // Clear references to prevent memory leaks
         profileName = null;
         profileEmail = null;
         profileAvatar = null;

@@ -39,8 +39,7 @@
                     android:layout_height="70dp"
                     android:layout_marginEnd="16dp"
                     android:scaleType="centerCrop"
-                    android:src="@android:drawable/ic_menu_gallery"
-                    app:shapeAppearanceOverlay="@drawable/ic_default_avatar" />
+                    android:src="@android:drawable/ic_menu_gallery" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -52,7 +51,7 @@
                         android:id="@+id/profileName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Tên"
+                        android:text="Người dùng"
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
                         android:textStyle="bold" />
@@ -62,7 +61,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="Email"
+                        android:text="email@example.com"
                         android:textColor="@android:color/white"
                         android:textSize="14sp"
                         android:alpha="0.9" />
@@ -82,7 +81,7 @@
                             android:id="@+id/recipeCount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="24 công thức"
+                            android:text="0 công thức"
                             android:textColor="@android:color/white"
                             android:textSize="12sp" />
 
@@ -98,7 +97,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:paddingLeft="0dp"
-                            android:text=" 1.2k lượt thích"
+                            android:text="0 yêu thích"
                             android:textColor="@android:color/white"
                             android:textSize="12sp" />
                     </LinearLayout>
@@ -123,7 +122,7 @@
                         android:id="@+id/statDays"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="24"
+                        android:text="0"
                         android:textColor="@android:color/white"
                         android:textSize="24sp"
                         android:textStyle="bold" />
@@ -148,7 +147,7 @@
                         android:id="@+id/statFollowers"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="156"
+                        android:text="0"
                         android:textColor="@android:color/white"
                         android:textSize="24sp"
                         android:textStyle="bold" />
@@ -173,7 +172,7 @@
                         android:id="@+id/statFollowing"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="89"
+                        android:text="0"
                         android:textColor="@android:color/white"
                         android:textSize="24sp"
                         android:textStyle="bold" />
