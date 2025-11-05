@@ -42,6 +42,7 @@ import com.google.firebase.database.ValueEventListener;
 
 import androidx.lifecycle.ViewModelProvider;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RecipeDetailActivity extends AppCompatActivity {
@@ -1205,6 +1206,16 @@ public class RecipeDetailActivity extends AppCompatActivity {
                     Log.d(TAG, " Rating submitted successfully: User=" + rating + ", Average=" + newAverageRating
                             + ", Count=" + newRatingCount);
                     Toast.makeText(RecipeDetailActivity.this, "Cảm ơn bạn đã đánh giá!", Toast.LENGTH_SHORT).show();
+
+                    // Notify parent activity (MyRecipesActivity or UserProfileActivity) that rating
+                    // was updated
+                    // This ensures the recipe list will reload and show updated rating
+                    Intent resultIntent = new Intent();
+                    resultIntent.putExtra("rating_updated", true);
+                    resultIntent.putExtra("recipe_id", recipeId);
+                    resultIntent.putExtra("new_rating", newAverageRating);
+                    resultIntent.putExtra("new_rating_count", newRatingCount);
+                    setResult(RESULT_OK, resultIntent);
                 });
             }
 
@@ -1266,6 +1277,20 @@ public class RecipeDetailActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    @Override
+    public void onBackPressed() {
+        // Always set result when going back to notify parent activity
+        // This ensures parent activity (MyRecipesActivity or UserProfileActivity)
+        // can reload the list even if user just viewed the recipe without editing
+        Intent resultIntent = new Intent();
+        resultIntent.putExtra("recipe_viewed", true);
+        if (recipeId != null) {
+            resultIntent.putExtra("recipe_id", recipeId);
+        }
+        setResult(RESULT_OK, resultIntent);
+        super.onBackPressed();
+    }
+
     private void navigateToEditRecipe() {
         Intent intent = new Intent(this, EditRecipeActivity.class);
         intent.putExtra(EditRecipeActivity.EXTRA_RECIPE_ID, recipe.getId());
@@ -1290,8 +1315,235 @@ public class RecipeDetailActivity extends AppCompatActivity {
                     recipe.getInstructions().toArray(new String[0]));
         }
 
-        startActivity(intent);
-        finish(); // Close detail and refresh when coming back
+        startActivityForResult(intent, 100); // Request code 100 for edit recipe
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 100 && resultCode == RESULT_OK) {
+            // Recipe was updated, reload data immediately
+            if (data != null && data.getBooleanExtra("recipe_updated", false)) {
+                String updatedRecipeId = data.getStringExtra("recipe_id");
+                if (updatedRecipeId != null && updatedRecipeId.equals(recipeId)) {
+                    Log.d(TAG, "Recipe was updated, reloading immediately...");
+                    // Small delay to ensure Firebase has synced
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                        // Reload recipe from Firebase to get updated data
+                        loadRecipeFromFirebase();
+                        // Reload recipe details completely
+                        reloadRecipeDetails();
+                    }, 300); // 300ms delay to ensure Firebase sync
+
+                    // Also notify parent activity (if any) that recipe was updated
+                    Intent resultIntent = new Intent();
+                    resultIntent.putExtra("recipe_updated", true);
+                    resultIntent.putExtra("recipe_id", updatedRecipeId);
+                    setResult(RESULT_OK, resultIntent);
+                }
+            }
+        }
+    }
+
+    /**
+     * Reload recipe details from Firebase and update UI completely
+     */
+    private void reloadRecipeDetails() {
+        if (recipeId == null || recipeId.isEmpty()) {
+            return;
+        }
+
+        Log.d(TAG, "Reloading recipe details for recipeId: " + recipeId);
+
+        // Check foods node first (vì recipes được hiển thị từ foods node)
+        DatabaseReference foodRef = FirebaseDatabase.getInstance()
+                .getReference("foods")
+                .child(recipeId);
+
+        foodRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot foodSnapshot) {
+                if (foodSnapshot.exists() && recipe != null) {
+                    // Check if there's a linked recipeId (user-created recipe)
+                    String linkedRecipeId = foodSnapshot.child("recipeId").getValue(String.class);
+
+                    if (linkedRecipeId != null && !linkedRecipeId.isEmpty()) {
+                        // User-created recipe - load from recipes node (source of truth)
+                        Log.d(TAG, "Loading updated recipe from recipes node: " + linkedRecipeId);
+                        DatabaseReference recipeRef = FirebaseDatabase.getInstance()
+                                .getReference("recipes")
+                                .child(linkedRecipeId);
+
+                        recipeRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(DataSnapshot recipeSnapshot) {
+                                updateRecipeFromSnapshot(recipeSnapshot, foodSnapshot);
+                            }
+
+                            @Override
+                            public void onCancelled(DatabaseError error) {
+                                // Fallback to foods node
+                                Log.w(TAG, "Error loading from recipes node, using foods node");
+                                updateRecipeFromSnapshot(foodSnapshot, null);
+                            }
+                        });
+                    } else {
+                        // API recipe - load from foods node
+                        Log.d(TAG, "Loading updated recipe from foods node (API recipe)");
+                        updateRecipeFromSnapshot(foodSnapshot, null);
+                    }
+                } else {
+                    // Not in foods node, try recipes node
+                    Log.d(TAG, "Recipe not in foods node, checking recipes node: " + recipeId);
+                    DatabaseReference recipeRef = FirebaseDatabase.getInstance()
+                            .getReference("recipes")
+                            .child(recipeId);
+
+                    recipeRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(DataSnapshot recipeSnapshot) {
+                            updateRecipeFromSnapshot(recipeSnapshot, null);
+                        }
+
+                        @Override
+                        public void onCancelled(DatabaseError error) {
+                            Log.e(TAG, "Error reloading recipe from Firebase", error.toException());
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Log.e(TAG, "Error reloading recipe from Firebase", error.toException());
+            }
+        });
+    }
+
+    /**
+     * Update recipe object and UI from Firebase snapshot
+     */
+    private void updateRecipeFromSnapshot(DataSnapshot snapshot, DataSnapshot foodSnapshot) {
+        if (snapshot == null || !snapshot.exists() || recipe == null) {
+            return;
+        }
+
+        // Update recipe object with latest data from recipes node
+        if (snapshot.hasChild("title")) {
+            recipe.setTitle(snapshot.child("title").getValue(String.class));
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("name")) {
+            recipe.setTitle(foodSnapshot.child("name").getValue(String.class));
+        }
+
+        if (snapshot.hasChild("description")) {
+            recipe.setDescription(snapshot.child("description").getValue(String.class));
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("description")) {
+            recipe.setDescription(foodSnapshot.child("description").getValue(String.class));
+        }
+
+        if (snapshot.hasChild("imageUrl")) {
+            recipe.setImageUrl(snapshot.child("imageUrl").getValue(String.class));
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("image")) {
+            recipe.setImageUrl(foodSnapshot.child("image").getValue(String.class));
+        }
+
+        if (snapshot.hasChild("prepTime")) {
+            Object prepTimeObj = snapshot.child("prepTime").getValue();
+            if (prepTimeObj != null) {
+                recipe.setPrepTime(
+                        prepTimeObj instanceof Long ? ((Long) prepTimeObj).intValue() : ((Integer) prepTimeObj));
+            }
+        }
+
+        if (snapshot.hasChild("cookTime")) {
+            Object cookTimeObj = snapshot.child("cookTime").getValue();
+            if (cookTimeObj != null) {
+                recipe.setCookTime(
+                        cookTimeObj instanceof Long ? ((Long) cookTimeObj).intValue() : ((Integer) cookTimeObj));
+            }
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("cookTime")) {
+            Object cookTimeObj = foodSnapshot.child("cookTime").getValue();
+            if (cookTimeObj != null) {
+                recipe.setCookTime(
+                        cookTimeObj instanceof Long ? ((Long) cookTimeObj).intValue() : ((Integer) cookTimeObj));
+            }
+        }
+
+        if (snapshot.hasChild("servings")) {
+            Object servingsObj = snapshot.child("servings").getValue();
+            if (servingsObj != null) {
+                recipe.setServings(
+                        servingsObj instanceof Long ? ((Long) servingsObj).intValue() : ((Integer) servingsObj));
+            }
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("servings")) {
+            Object servingsObj = foodSnapshot.child("servings").getValue();
+            if (servingsObj != null) {
+                recipe.setServings(
+                        servingsObj instanceof Long ? ((Long) servingsObj).intValue() : ((Integer) servingsObj));
+            }
+        }
+
+        if (snapshot.hasChild("difficulty")) {
+            recipe.setDifficulty(snapshot.child("difficulty").getValue(String.class));
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("difficulty")) {
+            recipe.setDifficulty(foodSnapshot.child("difficulty").getValue(String.class));
+        }
+
+        // Update categories
+        if (snapshot.hasChild("categories")) {
+            List<String> categories = new ArrayList<>();
+            for (DataSnapshot cat : snapshot.child("categories").getChildren()) {
+                categories.add(cat.getValue(String.class));
+            }
+            recipe.setCategories(categories);
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("category")) {
+            String category = foodSnapshot.child("category").getValue(String.class);
+            if (category != null) {
+                recipe.setCategories(java.util.Arrays.asList(category));
+            }
+        }
+
+        // Update ingredients
+        if (snapshot.hasChild("ingredients")) {
+            List<String> ingredients = new ArrayList<>();
+            for (DataSnapshot ing : snapshot.child("ingredients").getChildren()) {
+                ingredients.add(ing.getValue(String.class));
+            }
+            recipe.setIngredients(ingredients);
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("ingredients")) {
+            List<String> ingredients = new ArrayList<>();
+            for (DataSnapshot ing : foodSnapshot.child("ingredients").getChildren()) {
+                ingredients.add(ing.getValue(String.class));
+            }
+            recipe.setIngredients(ingredients);
+        }
+
+        // Update instructions
+        if (snapshot.hasChild("instructions")) {
+            List<String> instructions = new ArrayList<>();
+            for (DataSnapshot inst : snapshot.child("instructions").getChildren()) {
+                instructions.add(inst.getValue(String.class));
+            }
+            recipe.setInstructions(instructions);
+        } else if (foodSnapshot != null && foodSnapshot.hasChild("instructions")) {
+            List<String> instructions = new ArrayList<>();
+            for (DataSnapshot inst : foodSnapshot.child("instructions").getChildren()) {
+                instructions.add(inst.getValue(String.class));
+            }
+            recipe.setInstructions(instructions);
+        }
+
+        // Refresh UI completely
+        runOnUiThread(() -> {
+            // Clear existing UI
+            categoriesChipGroup.removeAllViews();
+            ingredientsContainer.removeAllViews();
+            instructionsContainer.removeAllViews();
+
+            // Redisplay with updated data
+            displayRecipeDetails();
+            Log.d(TAG, "Recipe details UI refreshed with updated data");
+        });
     }
 
     private void confirmDeleteRecipe() {
@@ -1304,9 +1556,36 @@ public class RecipeDetailActivity extends AppCompatActivity {
     }
 
     private void deleteRecipe() {
+        // Show loading state
+        Toast.makeText(this, "Đang xóa công thức...", Toast.LENGTH_SHORT).show();
+
         com.example.cookshare.services.FirebaseDatabaseService service = new com.example.cookshare.services.FirebaseDatabaseService();
-        service.deleteRecipe(recipe.getId());
-        Toast.makeText(this, "Đã xóa công thức", Toast.LENGTH_SHORT).show();
-        finish();
+        service.deleteRecipe(recipe.getId(),
+                new com.example.cookshare.services.FirebaseDatabaseService.RecipeCallback() {
+                    @Override
+                    public void onSuccess(String recipeId) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(RecipeDetailActivity.this, "Đã xóa công thức thành công", Toast.LENGTH_SHORT)
+                                    .show();
+
+                            // Set result to notify parent activity that recipe was deleted
+                            Intent resultIntent = new Intent();
+                            resultIntent.putExtra("recipe_deleted", true);
+                            resultIntent.putExtra("recipe_id", recipeId);
+                            setResult(RESULT_OK, resultIntent);
+
+                            // Close activity immediately - recipe is deleted
+                            finish();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(RecipeDetailActivity.this, "Lỗi khi xóa công thức: " + error,
+                                    Toast.LENGTH_LONG).show();
+                        });
+                    }
+                });
     }
 }

@@ -127,8 +127,17 @@ public class ProfileFragment extends Fragment {
     public void onResume() {
         super.onResume();
         // Reload data when user comes back to this tab
-        Log.d("ProfileFragment", "onResume() - Reloading profile data");
+        // This ensures recipesCount and other stats are updated after edit/delete
+        Log.d("ProfileFragment", "onResume() - Reloading profile data immediately");
+        // Reload immediately, then reload again after delay to catch any Firebase sync
+        // delays
         loadDataFromViewModel();
+        // Also reload after a delay to ensure Firebase has synced if user just
+        // edited/deleted a recipe
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            Log.d("ProfileFragment", "onResume() - Reloading profile data after delay for Firebase sync");
+            loadDataFromViewModel();
+        }, 500); // 500ms delay to ensure Firebase sync
     }
 
     private void initializeViews(View view) {

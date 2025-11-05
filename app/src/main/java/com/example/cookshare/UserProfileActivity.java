@@ -180,7 +180,7 @@ public class UserProfileActivity extends AppCompatActivity {
                         recipe.getInstructions().toArray(new String[0]));
             }
 
-            startActivity(intent);
+            startActivityForResult(intent, 300); // Request code 300 for recipe detail/edit/delete
         });
 
         recipesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -471,6 +471,29 @@ public class UserProfileActivity extends AppCompatActivity {
         }
         if (recipesRecyclerView != null) {
             recipesRecyclerView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 300 && resultCode == RESULT_OK) {
+            // Always reload when coming back from RecipeDetailActivity
+            // This ensures UI is updated immediately after edit/delete/view/rating
+            if (userId != null && !userId.isEmpty()) {
+                // Check if rating was updated
+                boolean ratingUpdated = data != null && data.getBooleanExtra("rating_updated", false);
+                if (ratingUpdated) {
+                    Log.d(TAG, "Rating was updated in RecipeDetailActivity, reloading user recipes...");
+                } else {
+                    Log.d(TAG, "RecipeDetailActivity returned (resultCode: " + resultCode
+                            + "), reloading user recipes immediately...");
+                }
+                // Small delay to ensure Firebase has synced
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    profileViewModel.loadUserRecipes(userId);
+                }, 500); // 500ms delay to ensure Firebase sync
+            }
         }
     }
 

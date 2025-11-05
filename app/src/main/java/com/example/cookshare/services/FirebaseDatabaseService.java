@@ -123,25 +123,643 @@ public class FirebaseDatabaseService {
 
     public void updateRecipe(String recipeId, Recipe recipe, RecipeCallback callback) {
         recipe.setUpdatedAt(new java.util.Date());
-        recipesRef.child(recipeId).setValue(recipe)
+
+        // The recipeId might be from foods node or recipes node
+        // First, check if it exists in recipes node
+        recipesRef.child(recipeId).child("authorId").addListenerForSingleValueEvent(
+                new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            // Found in recipes node - proceed with normal update
+                            String authorId = snapshot.getValue(String.class);
+                            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+
+                            if (currentUser == null || !currentUser.getUid().equals(authorId)) {
+                                Log.e(TAG, "User is not the author. Current: " +
+                                        (currentUser != null ? currentUser.getUid() : "null") +
+                                        ", Author: " + authorId);
+                                if (callback != null) {
+                                    callback.onError("Permission denied: You can only update your own recipes");
+                                }
+                                return;
+                            }
+
+                            // User is the author, proceed with update
+                            updateRecipeInRecipesNode(recipeId, recipe, new RecipeCallback() {
+                                @Override
+                                public void onSuccess(String updatedRecipeId) {
+                                    // Also update foods node
+                                    updateRecipeInFoodsNode(updatedRecipeId, recipe, callback);
+                                }
+
+                                @Override
+                                public void onError(String error) {
+                                    if (callback != null) {
+                                        callback.onError(error);
+                                    }
+                                }
+                            });
+                        } else {
+                            // Not found in recipes node - check foods node
+                            Log.d(TAG, "Recipe not found in recipes node, checking foods node: " + recipeId);
+                            checkAndUpdateFromFoodsNode(recipeId, recipe, callback);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error checking recipes node, trying foods node", error.toException());
+                        // On error, try foods node
+                        checkAndUpdateFromFoodsNode(recipeId, recipe, callback);
+                    }
+                });
+    }
+
+    /**
+     * Check if recipe exists in foods node and update accordingly
+     */
+    private void checkAndUpdateFromFoodsNode(String foodId, Recipe recipe, RecipeCallback callback) {
+        foodsRef.child(foodId).addListenerForSingleValueEvent(
+                new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        if (!snapshot.exists()) {
+                            Log.e(TAG, "Recipe not found in both recipes and foods nodes: " + foodId);
+                            if (callback != null) {
+                                callback.onError("Recipe not found");
+                            }
+                            return;
+                        }
+
+                        // Check if there's a linked recipeId
+                        String linkedRecipeId = snapshot.child("recipeId").getValue(String.class);
+                        String authorId = snapshot.child("authorId").getValue(String.class);
+
+                        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+                        if (currentUser == null || !currentUser.getUid().equals(authorId)) {
+                            Log.e(TAG, "User is not the author. Current: " +
+                                    (currentUser != null ? currentUser.getUid() : "null") +
+                                    ", Author: " + authorId);
+                            if (callback != null) {
+                                callback.onError("Permission denied: You can only update your own recipes");
+                            }
+                            return;
+                        }
+
+                        if (linkedRecipeId != null && !linkedRecipeId.isEmpty()) {
+                            // Has linkedRecipeId - update both recipes and foods nodes
+                            Log.d(TAG, "Found linkedRecipeId in foods node: " + linkedRecipeId);
+                            updateRecipeInRecipesNode(linkedRecipeId, recipe, new RecipeCallback() {
+                                @Override
+                                public void onSuccess(String recipeId) {
+                                    // Also update foods node
+                                    updateRecipeInFoodsNode(linkedRecipeId, recipe, callback);
+                                }
+
+                                @Override
+                                public void onError(String error) {
+                                    if (callback != null) {
+                                        callback.onError(error);
+                                    }
+                                }
+                            });
+                        } else {
+                            // No linkedRecipeId - only update foods node (old structure or API recipe)
+                            Log.d(TAG, "No linkedRecipeId found, updating foods node only: " + foodId);
+                            updateRecipeInFoodsNodeDirectly(foodId, recipe, callback);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error checking foods node", error.toException());
+                        if (callback != null) {
+                            callback.onError("Error checking recipe: " + error.getMessage());
+                        }
+                    }
+                });
+    }
+
+    /**
+     * Update recipe in recipes node
+     */
+    private void updateRecipeInRecipesNode(String recipeId, Recipe recipe, RecipeCallback callback) {
+        Map<String, Object> updates = new HashMap<>();
+
+        // Only update fields that can be changed
+        if (recipe.getTitle() != null) {
+            updates.put("title", recipe.getTitle());
+        }
+        if (recipe.getDescription() != null) {
+            updates.put("description", recipe.getDescription());
+        }
+        if (recipe.getImageUrl() != null) {
+            updates.put("imageUrl", recipe.getImageUrl());
+        }
+        if (recipe.getCategories() != null) {
+            updates.put("categories", recipe.getCategories());
+        }
+        if (recipe.getIngredients() != null) {
+            updates.put("ingredients", recipe.getIngredients());
+        }
+        if (recipe.getInstructions() != null) {
+            updates.put("instructions", recipe.getInstructions());
+        }
+        if (recipe.getPrepTime() >= 0) {
+            updates.put("prepTime", recipe.getPrepTime());
+        }
+        if (recipe.getCookTime() > 0) {
+            updates.put("cookTime", recipe.getCookTime());
+        }
+        if (recipe.getServings() > 0) {
+            updates.put("servings", recipe.getServings());
+        }
+        if (recipe.getDifficulty() != null) {
+            updates.put("difficulty", recipe.getDifficulty());
+        }
+        // Keep metadata unchanged (authorId, createdAt, rating, etc.)
+        updates.put("updatedAt", recipe.getUpdatedAt());
+
+        // Update recipes node using updateChildren
+        recipesRef.child(recipeId).updateChildren(updates)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Recipe updated successfully");
+                    Log.d(TAG, "Recipe updated successfully in recipes node: " + recipeId);
                     if (callback != null) {
                         callback.onSuccess(recipeId);
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to update recipe", e);
+                    Log.e(TAG, "Failed to update recipe in recipes node", e);
                     if (callback != null) {
                         callback.onError(e.getMessage());
                     }
                 });
     }
 
-    public void deleteRecipe(String recipeId) {
+    /**
+     * Update recipe directly in foods node (for recipes without linkedRecipeId)
+     */
+    private void updateRecipeInFoodsNodeDirectly(String foodId, Recipe recipe, RecipeCallback callback) {
+        String category = "Món chính";
+        if (recipe.getCategories() != null && !recipe.getCategories().isEmpty()) {
+            category = recipe.getCategories().get(0);
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("name", recipe.getTitle() != null ? recipe.getTitle() : "Chưa có tên");
+        updates.put("description", recipe.getDescription() != null ? recipe.getDescription() : "");
+        updates.put("image", recipe.getImageUrl() != null ? recipe.getImageUrl() : "");
+        updates.put("category", category);
+
+        if (recipe.getPrepTime() >= 0) {
+            updates.put("prepTime", recipe.getPrepTime());
+        }
+        if (recipe.getCookTime() > 0) {
+            updates.put("cookTime", recipe.getCookTime());
+        }
+        if (recipe.getServings() > 0) {
+            updates.put("servings", recipe.getServings());
+        }
+        if (recipe.getDifficulty() != null) {
+            updates.put("difficulty", recipe.getDifficulty());
+        }
+        if (recipe.getIngredients() != null) {
+            updates.put("ingredients", recipe.getIngredients());
+        }
+        if (recipe.getInstructions() != null) {
+            updates.put("instructions", recipe.getInstructions());
+        }
+
+        foodsRef.child(foodId).updateChildren(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Recipe updated successfully in foods node: " + foodId);
+                    if (callback != null) {
+                        callback.onSuccess(foodId);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to update recipe in foods node", e);
+                    if (callback != null) {
+                        callback.onError(e.getMessage());
+                    }
+                });
+    }
+
+    /**
+     * Update recipe in foods node by finding the food entry with matching recipeId
+     */
+    private void updateRecipeInFoodsNode(String recipeId, Recipe recipe, RecipeCallback callback) {
+        // Query foods node to find entries with matching recipeId
+        foodsRef.orderByChild("recipeId").equalTo(recipeId)
+                .addListenerForSingleValueEvent(new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        if (snapshot.exists() && snapshot.getChildrenCount() > 0) {
+                            // Update all matching entries (should be only one)
+                            final int totalCount = (int) snapshot.getChildrenCount();
+                            final int[] updateCount = { 0 }; // Use array to make it effectively final
+
+                            for (com.google.firebase.database.DataSnapshot foodSnapshot : snapshot.getChildren()) {
+                                String foodId = foodSnapshot.getKey();
+                                if (foodId != null) {
+                                    // Get category from recipe or use default
+                                    String category = "Món chính";
+                                    if (recipe.getCategories() != null && !recipe.getCategories().isEmpty()) {
+                                        category = recipe.getCategories().get(0);
+                                    }
+
+                                    // Update food data
+                                    Map<String, Object> updates = new HashMap<>();
+                                    updates.put("name", recipe.getTitle() != null ? recipe.getTitle() : "Chưa có tên");
+                                    updates.put("description",
+                                            recipe.getDescription() != null ? recipe.getDescription() : "");
+                                    updates.put("image", recipe.getImageUrl() != null ? recipe.getImageUrl() : "");
+                                    updates.put("category", category);
+
+                                    // Update metadata
+                                    if (recipe.getPrepTime() >= 0) {
+                                        updates.put("prepTime", recipe.getPrepTime());
+                                    }
+                                    if (recipe.getCookTime() > 0) {
+                                        updates.put("cookTime", recipe.getCookTime());
+                                    }
+                                    if (recipe.getServings() > 0) {
+                                        updates.put("servings", recipe.getServings());
+                                    }
+                                    if (recipe.getDifficulty() != null) {
+                                        updates.put("difficulty", recipe.getDifficulty());
+                                    }
+
+                                    // Update ingredients and instructions
+                                    if (recipe.getIngredients() != null) {
+                                        updates.put("ingredients", recipe.getIngredients());
+                                    }
+                                    if (recipe.getInstructions() != null) {
+                                        updates.put("instructions", recipe.getInstructions());
+                                    }
+
+                                    // Keep existing counts and ratings
+                                    // (viewCount, likeCount, rating, ratingCount are not updated)
+
+                                    foodsRef.child(foodId).updateChildren(updates)
+                                            .addOnSuccessListener(aVoid -> {
+                                                synchronized (updateCount) {
+                                                    updateCount[0]++;
+                                                    Log.d(TAG, "Recipe updated in foods node. Food ID: " + foodId);
+
+                                                    // If this is the last update, call callback
+                                                    if (updateCount[0] == totalCount) {
+                                                        if (callback != null) {
+                                                            callback.onSuccess(recipeId);
+                                                        }
+                                                    }
+                                                }
+                                            })
+                                            .addOnFailureListener(e -> {
+                                                synchronized (updateCount) {
+                                                    updateCount[0]++;
+                                                    Log.e(TAG,
+                                                            "Failed to update recipe in foods node. Food ID: " + foodId,
+                                                            e);
+                                                    // Still call success callback even if foods update fails
+                                                    // because recipes node was updated successfully
+                                                    if (updateCount[0] == totalCount && callback != null) {
+                                                        callback.onSuccess(recipeId);
+                                                    }
+                                                }
+                                            });
+                                }
+                            }
+
+                            // If no food entries were found (shouldn't happen)
+                            if (totalCount == 0 && callback != null) {
+                                callback.onSuccess(recipeId);
+                            }
+                        } else {
+                            // Recipe not found in foods node (might be an old recipe or API recipe)
+                            Log.w(TAG, "Recipe not found in foods node with recipeId: " + recipeId);
+                            // Still call success callback because recipes node was updated
+                            if (callback != null) {
+                                callback.onSuccess(recipeId);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error querying foods node for update", error.toException());
+                        // Still call success callback because recipes node was updated
+                        if (callback != null) {
+                            callback.onSuccess(recipeId);
+                        }
+                    }
+                });
+    }
+
+    public void deleteRecipe(String recipeId, RecipeCallback callback) {
+        // The recipeId might be from foods node or recipes node
+        // First, check if it exists in recipes node
+        recipesRef.child(recipeId).child("authorId").addListenerForSingleValueEvent(
+                new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            // Found in recipes node - verify author and delete
+                            String authorId = snapshot.getValue(String.class);
+                            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+
+                            if (currentUser == null || !currentUser.getUid().equals(authorId)) {
+                                Log.e(TAG, "User is not the author. Current: " +
+                                        (currentUser != null ? currentUser.getUid() : "null") +
+                                        ", Author: " + authorId);
+                                if (callback != null) {
+                                    callback.onError("Permission denied: You can only delete your own recipes");
+                                }
+                                return;
+                            }
+
+                            // User is the author, proceed with delete
+                            deleteRecipeFromRecipesNode(recipeId, callback);
+                        } else {
+                            // Not found in recipes node - check foods node
+                            Log.d(TAG, "Recipe not found in recipes node, checking foods node: " + recipeId);
+                            checkAndDeleteFromFoodsNode(recipeId, callback);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error checking recipes node, trying foods node", error.toException());
+                        // On error, try foods node
+                        checkAndDeleteFromFoodsNode(recipeId, callback);
+                    }
+                });
+    }
+
+    /**
+     * Delete recipe from recipes node
+     */
+    private void deleteRecipeFromRecipesNode(String recipeId, RecipeCallback callback) {
         recipesRef.child(recipeId).removeValue()
-                .addOnSuccessListener(aVoid -> Log.d(TAG, "Recipe deleted successfully"))
-                .addOnFailureListener(e -> Log.e(TAG, "Failed to delete recipe", e));
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Recipe deleted successfully from recipes node");
+
+                    // Also delete from foods node (find the food entry with matching recipeId)
+                    deleteRecipeFromFoodsNode(recipeId, callback);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to delete recipe from recipes node", e);
+                    if (callback != null) {
+                        callback.onError(e.getMessage());
+                    }
+                });
+    }
+
+    /**
+     * Check if recipe exists in foods node and delete accordingly
+     */
+    private void checkAndDeleteFromFoodsNode(String foodId, RecipeCallback callback) {
+        foodsRef.child(foodId).addListenerForSingleValueEvent(
+                new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        if (!snapshot.exists()) {
+                            Log.e(TAG, "Recipe not found in both recipes and foods nodes: " + foodId);
+                            if (callback != null) {
+                                callback.onError("Recipe not found");
+                            }
+                            return;
+                        }
+
+                        // Check author
+                        String authorId = snapshot.child("authorId").getValue(String.class);
+                        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+
+                        if (currentUser == null || !currentUser.getUid().equals(authorId)) {
+                            Log.e(TAG, "User is not the author. Current: " +
+                                    (currentUser != null ? currentUser.getUid() : "null") +
+                                    ", Author: " + authorId);
+                            if (callback != null) {
+                                callback.onError("Permission denied: You can only delete your own recipes");
+                            }
+                            return;
+                        }
+
+                        // Check if there's a linked recipeId
+                        String linkedRecipeId = snapshot.child("recipeId").getValue(String.class);
+
+                        if (linkedRecipeId != null && !linkedRecipeId.isEmpty()) {
+                            // Has linkedRecipeId - delete from both recipes and foods nodes
+                            Log.d(TAG, "Found linkedRecipeId in foods node: " + linkedRecipeId);
+                            deleteRecipeFromRecipesNode(linkedRecipeId, new RecipeCallback() {
+                                @Override
+                                public void onSuccess(String recipeId) {
+                                    // Also delete from foods node
+                                    deleteRecipeFromFoodsNodeDirectly(foodId, callback);
+                                }
+
+                                @Override
+                                public void onError(String error) {
+                                    if (callback != null) {
+                                        callback.onError(error);
+                                    }
+                                }
+                            });
+                        } else {
+                            // No linkedRecipeId - only delete from foods node
+                            Log.d(TAG, "No linkedRecipeId found, deleting from foods node only: " + foodId);
+                            deleteRecipeFromFoodsNodeDirectly(foodId, callback);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error checking foods node", error.toException());
+                        if (callback != null) {
+                            callback.onError("Error checking recipe: " + error.getMessage());
+                        }
+                    }
+                });
+    }
+
+    /**
+     * Delete recipe directly from foods node
+     */
+    private void deleteRecipeFromFoodsNodeDirectly(String foodId, RecipeCallback callback) {
+        // Get authorId before deleting to update recipesCount
+        foodsRef.child(foodId).child("authorId").addListenerForSingleValueEvent(
+                new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        String authorId = null;
+                        if (snapshot.exists()) {
+                            authorId = snapshot.getValue(String.class);
+                        }
+
+                        final String finalAuthorId = authorId;
+
+                        // Delete from foods node
+                        foodsRef.child(foodId).removeValue()
+                                .addOnSuccessListener(aVoid -> {
+                                    Log.d(TAG, "Recipe deleted from foods node. Food ID: " + foodId);
+
+                                    // Decrement recipesCount for author
+                                    if (finalAuthorId != null && !finalAuthorId.isEmpty()) {
+                                        decrementUserRecipesCount(finalAuthorId);
+                                    }
+
+                                    if (callback != null) {
+                                        callback.onSuccess(foodId);
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e(TAG, "Failed to delete recipe from foods node. Food ID: " + foodId, e);
+                                    if (callback != null) {
+                                        callback.onError(e.getMessage());
+                                    }
+                                });
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error getting authorId before delete", error.toException());
+                        // Still try to delete
+                        foodsRef.child(foodId).removeValue()
+                                .addOnSuccessListener(aVoid -> {
+                                    if (callback != null) {
+                                        callback.onSuccess(foodId);
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    if (callback != null) {
+                                        callback.onError(e.getMessage());
+                                    }
+                                });
+                    }
+                });
+    }
+
+    /**
+     * Delete recipe from foods node by finding the food entry with matching
+     * recipeId
+     */
+    private void deleteRecipeFromFoodsNode(String recipeId, RecipeCallback callback) {
+        // Query foods node to find entries with matching recipeId
+        foodsRef.orderByChild("recipeId").equalTo(recipeId)
+                .addListenerForSingleValueEvent(new com.google.firebase.database.ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull com.google.firebase.database.DataSnapshot snapshot) {
+                        if (snapshot.exists() && snapshot.getChildrenCount() > 0) {
+                            // Delete all matching entries (should be only one)
+                            final int totalCount = (int) snapshot.getChildrenCount();
+                            final int[] deleteCount = { 0 }; // Use array to make it effectively final
+
+                            for (com.google.firebase.database.DataSnapshot foodSnapshot : snapshot.getChildren()) {
+                                String foodId = foodSnapshot.getKey();
+                                if (foodId != null) {
+                                    // Get authorId before deleting to update recipesCount
+                                    String authorId = null;
+                                    if (foodSnapshot.child("authorId").exists()) {
+                                        authorId = foodSnapshot.child("authorId").getValue(String.class);
+                                    }
+
+                                    final String finalAuthorId = authorId;
+
+                                    foodsRef.child(foodId).removeValue()
+                                            .addOnSuccessListener(aVoid -> {
+                                                synchronized (deleteCount) {
+                                                    deleteCount[0]++;
+                                                    Log.d(TAG, "Recipe deleted from foods node. Food ID: " + foodId);
+
+                                                    // Decrement recipesCount for author
+                                                    if (finalAuthorId != null && !finalAuthorId.isEmpty()) {
+                                                        decrementUserRecipesCount(finalAuthorId);
+                                                    }
+
+                                                    // If this is the last delete, call callback
+                                                    if (deleteCount[0] == totalCount) {
+                                                        if (callback != null) {
+                                                            callback.onSuccess(recipeId);
+                                                        }
+                                                    }
+                                                }
+                                            })
+                                            .addOnFailureListener(e -> {
+                                                synchronized (deleteCount) {
+                                                    deleteCount[0]++;
+                                                    Log.e(TAG,
+                                                            "Failed to delete recipe from foods node. Food ID: "
+                                                                    + foodId,
+                                                            e);
+                                                    // Still call success callback even if foods delete fails
+                                                    // because recipes node was deleted successfully
+                                                    if (deleteCount[0] == totalCount && callback != null) {
+                                                        callback.onSuccess(recipeId);
+                                                    }
+                                                }
+                                            });
+                                }
+                            }
+
+                            // If no food entries were found (shouldn't happen)
+                            if (totalCount == 0 && callback != null) {
+                                callback.onSuccess(recipeId);
+                            }
+                        } else {
+                            // Recipe not found in foods node (might be an old recipe or API recipe)
+                            Log.w(TAG, "Recipe not found in foods node with recipeId: " + recipeId);
+                            // Still call success callback because recipes node was deleted
+                            if (callback != null) {
+                                callback.onSuccess(recipeId);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull com.google.firebase.database.DatabaseError error) {
+                        Log.e(TAG, "Error querying foods node for delete", error.toException());
+                        // Still call success callback because recipes node was deleted
+                        if (callback != null) {
+                            callback.onSuccess(recipeId);
+                        }
+                    }
+                });
+    }
+
+    /**
+     * Decrement recipesCount for a user
+     */
+    private void decrementUserRecipesCount(String userId) {
+        if (userId == null || userId.isEmpty()) {
+            return;
+        }
+
+        usersRef.child(userId).child("recipesCount")
+                .runTransaction(new com.google.firebase.database.Transaction.Handler() {
+                    @Override
+                    public com.google.firebase.database.Transaction.Result doTransaction(
+                            com.google.firebase.database.MutableData mutableData) {
+                        Integer current = mutableData.getValue(Integer.class);
+                        if (current == null) {
+                            current = 0;
+                        }
+                        mutableData.setValue(Math.max(0, current - 1)); // Don't go below 0
+                        return com.google.firebase.database.Transaction.success(mutableData);
+                    }
+
+                    @Override
+                    public void onComplete(
+                            com.google.firebase.database.DatabaseError error,
+                            boolean committed,
+                            com.google.firebase.database.DataSnapshot currentData) {
+                        if (error != null) {
+                            Log.e(TAG, "Error decrementing recipesCount", error.toException());
+                        } else if (committed) {
+                            Log.d(TAG, "RecipesCount decremented successfully for userId: " + userId);
+                        }
+                    }
+                });
     }
 
     // Favorites operations

@@ -101,11 +101,32 @@ public class MyRecipesActivity extends AppCompatActivity {
                         recipe.getInstructions().toArray(new String[0]));
             }
 
-            startActivity(intent);
+            startActivityForResult(intent, 200); // Request code 200 for recipe detail/edit/delete
         });
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(recipeAdapter);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 200 && resultCode == RESULT_OK) {
+            // Always reload when coming back from RecipeDetailActivity
+            // This ensures UI is updated immediately after edit/delete/view/rating
+            // Check if rating was updated
+            boolean ratingUpdated = data != null && data.getBooleanExtra("rating_updated", false);
+            if (ratingUpdated) {
+                Log.d(TAG, "Rating was updated in RecipeDetailActivity, reloading recipes list...");
+            } else {
+                Log.d(TAG, "RecipeDetailActivity returned (resultCode: " + resultCode
+                        + "), reloading recipes list immediately...");
+            }
+            // Small delay to ensure Firebase has synced
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                loadMyRecipes();
+            }, 500); // 500ms delay to ensure Firebase sync
+        }
     }
 
     private void loadMyRecipes() {

@@ -345,6 +345,12 @@ public class EditRecipeActivity extends AppCompatActivity {
                     hideLoading();
                     showSuccess();
 
+                    // Set result to notify parent activity that recipe was updated
+                    Intent resultIntent = new Intent();
+                    resultIntent.putExtra("recipe_updated", true);
+                    resultIntent.putExtra("recipe_id", recipeId);
+                    setResult(RESULT_OK, resultIntent);
+
                     // Close activity after 2 seconds
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         Toast.makeText(EditRecipeActivity.this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();
