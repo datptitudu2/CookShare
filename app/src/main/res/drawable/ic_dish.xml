@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Plate -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,2C6.5,2 2,6.5 2,12C2,17.5 6.5,22 12,22C17.5,22 22,17.5 22,12C22,6.5 17.5,2 12,2ZM12,20C7.6,20 4,16.4 4,12C4,7.6 7.6,4 12,4C16.4,4 20,7.6 20,12C20,16.4 16.4,20 12,20Z"/>
+    <!-- Fork -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M7,10L8,10L8,16L7,16L7,10Z"/>
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M6,11L9,11L9,12L6,12L6,11Z"/>
+    <!-- Knife -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M16,10L17,10L17,16L16,16L16,10Z"/>
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M15,11L18,11L18,12L15,12L15,11Z"/>
+</vector>
+

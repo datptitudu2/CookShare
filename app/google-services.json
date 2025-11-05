@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "180549378287",
+    "project_id": "cookshare-88d53",
+    "storage_bucket": "cookshare-88d53.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:180549378287:android:7bcb50d39a5ba8ff76fb1a",
+        "android_client_info": {
+          "package_name": "com.example.cookshare"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "180549378287-3d6rripjsruv7medtldo3sjh8ml8tp94.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.cookshare",
+            "certificate_hash": "101058641205e4a34152da173558c30799ad9c7c"
+          }
+        },
+        {
+          "client_id": "180549378287-osehg8a5fq51f9uael7smst4f17i5ii1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwiGnz-EN5HbMEAaGIboQrjJwqTVFvqyk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "180549378287-osehg8a5fq51f9uael7smst4f17i5ii1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
