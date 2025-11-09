@@ -294,7 +294,7 @@
                     android:background="@drawable/bg_circle"
                     android:backgroundTint="#E3F2FD"
                     android:padding="10dp"
-                    android:src="@android:drawable/ic_menu_myplaces"
+                    android:src="@drawable/ic_person"
                     app:tint="#2196F3" />
 
                 <TextView
