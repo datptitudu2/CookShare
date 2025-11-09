@@ -1,0 +1,175 @@
+{
+  "rules": {
+    "foods": {
+      ".read": true,
+      ".write": "auth != null",
+      "$foodId": {
+        ".write": "auth != null",
+        "viewCount": {
+          ".write": "auth != null"
+        },
+        "likeCount": {
+          ".write": "auth != null"
+        },
+        "rating": {
+          ".write": "auth != null"
+        },
+        "ratingCount": {
+          ".write": "auth != null"
+        },
+        "ratings": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$userId": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid === $userId"
+          }
+        },
+        "difficulty": {
+          ".write": "auth != null"
+        },
+        "prepTime": {
+          ".write": "auth != null"
+        },
+        "cookTime": {
+          ".write": "auth != null"
+        },
+        "servings": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "recipes": {
+      ".indexOn": ["authorId", "isPublished", "category", "nameLower"],
+      ".read": "query.orderBy == 'isPublished' && query.equalTo == true || auth != null",
+      "$recipeId": {
+        ".read": "auth != null || data.child('isPublished').val() === true",
+        ".write": "auth != null && (!data.exists() || data.child('authorId').val() === auth.uid)",
+        "rating": {
+          ".write": "auth != null"
+        },
+        "ratingCount": {
+          ".write": "auth != null"
+        },
+        "ratings": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$userId": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid === $userId"
+          }
+        },
+        "authorId": { 
+          ".validate": "newData.isString() && (data.exists() ? newData.val() === data.val() : newData.val() === auth.uid)",
+          ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (data.exists() && newData.val() === data.val()))"
+        },
+        "title": { 
+          ".validate": "newData.isString() && newData.val().length <= 100",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "imageUrl": { 
+          ".validate": "newData.isString()",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "isPublished": { 
+          ".validate": "newData.isBoolean()",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "categories": {
+          ".validate": "newData.exists()",
+          "$i": { ".validate": "newData.isString()" },
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "tags": {
+          "$i": { ".validate": "newData.isString()" },
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "tips": {
+          "$i": { ".validate": "newData.isString()" },
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "notes": { 
+          ".validate": "newData.isString()",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "calories": { 
+          ".validate": "newData.isNumber() && newData.val() >= 0",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "protein": { 
+          ".validate": "newData.isNumber() && newData.val() >= 0",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "carbs": { 
+          ".validate": "newData.isNumber() && newData.val() >= 0",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "fat": { 
+          ".validate": "newData.isNumber() && newData.val() >= 0",
+          ".write": "auth != null && data.exists() && data.child('authorId').val() === auth.uid"
+        },
+        "$other": {
+          ".write": "auth != null && ((!data.exists() && newData.child('authorId').val() === auth.uid) || (data.exists() && data.child('authorId').val() === auth.uid))",
+          ".validate": true
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "favorites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$recipeId": { ".write": "auth != null && auth.uid === $uid" }
+      }
+    },
+    "searchHistory": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "cookingHistory": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "recipes": {
+          ".indexOn": ["timestamp"],
+          "$recipeId": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    },
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null",
+        ".indexOn": ["timestamp"],
+        "$notificationId": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "followers": {
+      "$uid": {
+        ".read": true,
+        "$followerId": {
+          ".write": "auth != null && auth.uid === $followerId"
+        }
+      }
+    },
+    "following": {
+      "$uid": {
+        ".read": true,
+        "$followingId": {
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    }
+  }
+}
+
