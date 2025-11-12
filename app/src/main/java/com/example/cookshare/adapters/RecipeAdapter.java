@@ -208,7 +208,7 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecipeAdapter.RecipeView
         public void bind(Recipe recipe) {
             // Set recipe data
             recipeTitle.setText(recipe.getTitle() != null ? recipe.getTitle() : "Chưa có tên");
-            authorName.setText(recipe.getAuthorName() != null ? recipe.getAuthorName() : "Ẩm danh");
+            authorName.setText(recipe.getAuthorName() != null ? recipe.getAuthorName() : "Ẩn danh");
             recipeDescription.setText(recipe.getDescription() != null ? recipe.getDescription() : "Chưa có mô tả");
 
             // Category
