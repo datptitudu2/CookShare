@@ -47,27 +47,72 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecipeAdapter.RecipeView
         this.onLikeClickListener = listener;
     }
 
-    public void updateRecipes(List<Recipe> newRecipes) {
+    public void updateRecipes(List<Recipe> newRecipes, Boolean defaultLikeState) {
         this.recipes.clear();
         if (newRecipes != null) {
             this.recipes.addAll(newRecipes);
         }
-        // Giữ nguyên cache like state khi update recipes
+
+
+        // Nếu một trạng thái mặc định được cung cấp (ví dụ: true),
+        // hãy khởi động bộ đệm cache.
+        if (defaultLikeState != null && newRecipes != null) {
+            for (Recipe recipe : newRecipes) {
+                if (recipe.getId() != null) {
+                    this.likeStateCache.put(recipe.getId(), defaultLikeState);
+                }
+            }
+        }
         notifyDataSetChanged();
     }
 
-    // Method để update like state trong cache
+    /**
+     * Hàm updateRecipes cũ - gọi hàm mới với trạng thái null (để tương thích ngược).
+     */
+    public void updateRecipes(List<Recipe> newRecipes) {
+        updateRecipes(newRecipes, null); //
+    }
+
+    /**
+     * Hàm chính để thêm công thức, có tùy chọn đặt trạng thái thích mặc định.
+     */
+    public void addRecipes(List<Recipe> newRecipes, Boolean defaultLikeState) {
+        if (newRecipes == null || newRecipes.isEmpty()) return;
+
+        int startPosition = this.recipes.size();
+        this.recipes.addAll(newRecipes);
+
+
+        // Khởi động bộ đệm cache cho các item mới.
+        if (defaultLikeState != null) {
+            for (Recipe recipe : newRecipes) {
+                if (recipe.getId() != null) {
+                    this.likeStateCache.put(recipe.getId(), defaultLikeState);
+                }
+            }
+        }
+        notifyItemRangeInserted(startPosition, newRecipes.size());
+    }
+
+
+    public List<Recipe> getRecipes() {
+        return new ArrayList<>(this.recipes);
+    }
+    public void addRecipes(List<Recipe> newRecipes) {
+        addRecipes(newRecipes, null); //
+    }
+    public void clearRecipes() {
+        this.recipes.clear();
+        notifyDataSetChanged();
+    }
+
     public void updateLikeState(String recipeId, boolean isLiked) {
         if (recipeId != null) {
             likeStateCache.put(recipeId, isLiked);
         }
     }
 
-    public void addRecipes(List<Recipe> newRecipes) {
-        int startPosition = this.recipes.size();
-        this.recipes.addAll(newRecipes);
-        notifyItemRangeInserted(startPosition, newRecipes.size());
-    }
+
 
     @NonNull
     @Override

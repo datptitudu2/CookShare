@@ -110,36 +110,37 @@ public class FavoriteRecipesActivity extends AppCompatActivity {
 
         try {
             recipeAdapter = new RecipeAdapter();
-            recipeAdapter.setOnRecipeClickListener(recipe -> {
+            recipeAdapter.setOnRecipeClickListener(recipe -> { //
                 try {
                     // Navigate to RecipeDetailActivity
-                    Intent intent = new Intent(FavoriteRecipesActivity.this, RecipeDetailActivity.class);
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_ID, recipe.getId());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_TITLE, recipe.getTitle());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_DESCRIPTION, recipe.getDescription());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_IMAGE_URL, recipe.getImageUrl());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_AUTHOR_ID, recipe.getAuthorId());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_AUTHOR_NAME, recipe.getAuthorName());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_PREP_TIME, recipe.getPrepTime());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_COOK_TIME, recipe.getCookTime());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_SERVINGS, recipe.getServings());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_DIFFICULTY, recipe.getDifficulty());
-                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_RATING, recipe.getRating());
+                    Intent intent = new Intent(FavoriteRecipesActivity.this, RecipeDetailActivity.class); //
+                    // ... (Tất cả các dòng intent.putExtra của bạn ở đây) ...
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_ID, recipe.getId()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_TITLE, recipe.getTitle()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_DESCRIPTION, recipe.getDescription()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_IMAGE_URL, recipe.getImageUrl()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_AUTHOR_ID, recipe.getAuthorId()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_AUTHOR_NAME, recipe.getAuthorName()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_PREP_TIME, recipe.getPrepTime()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_COOK_TIME, recipe.getCookTime()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_SERVINGS, recipe.getServings()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_DIFFICULTY, recipe.getDifficulty()); //
+                    intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_RATING, recipe.getRating()); //
 
-                    if (recipe.getCategories() != null) {
+                    if (recipe.getCategories() != null) { //
                         intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_CATEGORIES,
-                                recipe.getCategories().toArray(new String[0]));
+                                recipe.getCategories().toArray(new String[0])); //
                     }
-                    if (recipe.getIngredients() != null) {
+                    if (recipe.getIngredients() != null) { //
                         intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_INGREDIENTS,
-                                recipe.getIngredients().toArray(new String[0]));
+                                recipe.getIngredients().toArray(new String[0])); //
                     }
-                    if (recipe.getInstructions() != null) {
+                    if (recipe.getInstructions() != null) { //
                         intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_INSTRUCTIONS,
-                                recipe.getInstructions().toArray(new String[0]));
+                                recipe.getInstructions().toArray(new String[0])); //
                     }
 
-                    startActivity(intent);
+                    startActivity(intent); //
                 } catch (Exception e) {
                     Log.e(TAG, "Error navigating to RecipeDetailActivity", e);
                     Toast.makeText(FavoriteRecipesActivity.this, "Lỗi mở chi tiết công thức", Toast.LENGTH_SHORT)
@@ -147,8 +148,38 @@ public class FavoriteRecipesActivity extends AppCompatActivity {
                 }
             });
 
-            recyclerView.setLayoutManager(new LinearLayoutManager(this));
-            recyclerView.setAdapter(recipeAdapter);
+
+            recipeAdapter.setOnLikeClickListener((recipe, isLiked) -> {
+                if (!isLiked) {
+                    Log.d(TAG, "User unliked recipe: " + recipe.getTitle());
+
+                    if (databaseService != null) {
+                        databaseService.removeFromFavorites(recipe.getId());
+                    }
+
+                    // ⭐ THÊM DÒNG NÀY ĐỂ HIỂN THỊ THÔNG BÁO
+                    Toast.makeText(FavoriteRecipesActivity.this, "Đã bỏ yêu thích", Toast.LENGTH_SHORT).show();
+
+                    // Xóa công thức khỏi danh sách trên UI
+                    List<Recipe> currentRecipes = recipeAdapter.getRecipes();
+                    List<Recipe> updatedRecipes = new ArrayList<>();
+                    for (Recipe r : currentRecipes) {
+                        if (!r.getId().equals(recipe.getId())) {
+                            updatedRecipes.add(r);
+                        }
+                    }
+
+                    recipeAdapter.updateRecipes(updatedRecipes, true);
+
+                    if (updatedRecipes.isEmpty()) {
+                        showEmptyState(); //
+                    }
+                }
+            });
+
+
+            recyclerView.setLayoutManager(new LinearLayoutManager(this)); //
+            recyclerView.setAdapter(recipeAdapter); //
         } catch (Exception e) {
             Log.e(TAG, "Error setting up RecyclerView", e);
         }
@@ -284,7 +315,7 @@ public class FavoriteRecipesActivity extends AppCompatActivity {
                                         if (ratingObj != null) {
                                             double rating = ratingObj instanceof Double ? (Double) ratingObj
                                                     : ratingObj instanceof Long ? ((Long) ratingObj).doubleValue()
-                                                            : ((Number) ratingObj).doubleValue();
+                                                    : ((Number) ratingObj).doubleValue();
                                             recipe.setRating(rating);
                                             Log.d(TAG, " Set rating: " + rating);
                                         }
@@ -372,7 +403,7 @@ public class FavoriteRecipesActivity extends AppCompatActivity {
                             Log.d(TAG, " Finished loading all recipes. Total loaded: " + favoriteRecipes.size());
 
                             // Run on main thread để update UI
-                            runOnUiThread(() -> {
+                            runOnUiThread(() -> { //
                                 if (favoriteRecipes.isEmpty()) {
                                     Log.w(TAG, " No recipes loaded, showing empty state");
                                     showEmptyState();
@@ -381,7 +412,10 @@ public class FavoriteRecipesActivity extends AppCompatActivity {
                                             + " favorite recipes");
                                     hideEmptyState();
                                     if (recipeAdapter != null) {
-                                        recipeAdapter.updateRecipes(new ArrayList<>(favoriteRecipes));
+                                        recipeAdapter.updateRecipes(new ArrayList<>(favoriteRecipes), true);
+                                        // (Bằng cách truyền 'true', chúng ta buộc adapter
+                                        // cache trạng thái "thích" ngay lập tức)
+
                                         Log.d(TAG, " Adapter updated. Item count: " + recipeAdapter.getItemCount());
                                     } else {
                                         Log.e(TAG, " RecipeAdapter is null!");
