@@ -21,7 +21,7 @@ import com.google.firebase.auth.FirebaseUser;
 import android.content.Intent;
 import androidx.annotation.NonNull;
 import com.example.cookshare.models.Recipe;
-import com.example.cookshare.models.VietnameseFood;
+import com.example.cookshare.models.VietnameseFood; // Đảm bảo bạn có import này
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -59,16 +59,21 @@ public class NotificationsActivity extends AppCompatActivity {
             // Setup RecyclerView
             setupRecyclerView();
 
-            // Load notifications
-            loadNotifications();
-
             // DEBUG: Thêm button test để tạo notification
+            // TODO: Xóa sau khi test xong
+            setupTestButton();
         } catch (Exception e) {
             Log.e(TAG, "Error in onCreate", e);
             Toast.makeText(this, "Lỗi khởi tạo màn hình: " + e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
         }
     }
+
+    /**
+     * ⭐ SỬA ĐỔI: Tải lại thông báo khi người dùng quay lại màn hình.
+     * Điều này đảm bảo trạng thái "đã đọc" được cập nhật
+     * sau khi họ xem chi tiết công thức và nhấn Back.
+     */
     @Override
     protected void onResume() {
         super.onResume();
@@ -110,6 +115,11 @@ public class NotificationsActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * ⭐ SỬA ĐỔI LỚN:
+     * 1. Thêm logic làm mờ item ngay lập tức (Optimistic UI).
+     * 2. Hoàn thành logic điều hướng đến RecipeDetailActivity.
+     */
     private void setupRecyclerView() {
         if (recyclerView == null) {
             Log.e(TAG, "Cannot setup RecyclerView: recyclerView is null");
@@ -120,19 +130,37 @@ public class NotificationsActivity extends AppCompatActivity {
             notificationAdapter = new NotificationAdapter();
             notificationAdapter.setOnNotificationClickListener(notification -> {
                 try {
-                    // 1. Đánh dấu là đã đọc
+                    // --- 1. LOGIC LÀM MỜ ITEM NGAY LẬP TỨC ---
                     String notificationId = (String) notification.get("id");
-                    if (notificationId != null) {
+
+                    // Lấy trạng thái "read" hiện tại từ Map
+                    // Mặc định là false nếu key không tồn tại
+                    Object readObj = notification.get("read");
+                    boolean isRead = (readObj instanceof Boolean) && ((Boolean) readObj);
+
+                    // Chỉ thực hiện nếu nó CHƯA được đọc
+                    if (notificationId != null && !isRead) {
+                        Log.d(TAG, "Đánh dấu đã đọc cho: " + notificationId);
+
+                        // 1. Cập nhật Firebase (trong nền)
                         databaseService.markNotificationAsRead(notificationId);
-                        // GHI CHÚ: Đã xóa loadNotifications() ở đây.
-                        // Danh sách sẽ được làm mới trong onResume() (đã thêm ở bước 1)
-                        // khi người dùng quay lại màn hình này.
+
+                        // 2. Cập nhật model cục bộ (in-memory) NGAY LẬP TỨC
+                        //    Vì 'notification' là một tham chiếu (reference) đến Map
+                        //    trong danh sách của adapter, việc thay đổi nó ở đây
+                        //    cũng sẽ thay đổi nó trong danh sách đó.
+                        notification.put("read", true);
+
+                        // 3. Thông báo cho adapter vẽ lại TẤT CẢ các item đang hiển thị
+                        //    (Nhanh hơn nhiều so với loadNotifications() vì không query
+                        //    lại Firebase, chỉ dùng dữ liệu trong bộ nhớ).
+                        notificationAdapter.notifyDataSetChanged();
                     }
+                    // --- KẾT THÚC LOGIC LÀM MỜ ---
 
-                    // 2. Lấy recipeId để điều hướng
+
+                    // --- 2. LOGIC ĐIỀU HƯỚNG CÔNG THỨC ---
                     String recipeId = (String) notification.get("recipeId");
-
-                    // --- BẮT ĐẦU CODE HOÀN CHỈNH PHẦN TODO ---
 
                     // Kiểm tra xem recipeId có hợp lệ không
                     if (recipeId != null && !recipeId.isEmpty()) {
@@ -140,11 +168,7 @@ public class NotificationsActivity extends AppCompatActivity {
                         Log.d(TAG, "Đang điều hướng đến recipeId: " + recipeId);
                         Toast.makeText(this, "Đang mở công thức...", Toast.LENGTH_SHORT).show();
 
-                        // Chúng ta phải tải chi tiết công thức đầy đủ từ Firebase
-                        // vì RecipeDetailActivity yêu cầu tất cả dữ liệu qua Intent.
-                        // Logic này được tham khảo từ FavoriteRecipesActivity
-
-                        // (Giả định bạn có model VietnameseFood như trong FavoriteRecipesActivity)
+                        // Tải chi tiết công thức từ Firebase
                         String databaseUrl = "https://cookshare-88d53-default-rtdb.asia-southeast1.firebasedatabase.app/";
                         DatabaseReference recipeRef = FirebaseDatabase.getInstance(databaseUrl)
                                 .getReference("foods")
@@ -154,16 +178,13 @@ public class NotificationsActivity extends AppCompatActivity {
                             @Override
                             public void onDataChange(@NonNull DataSnapshot snapshot) {
                                 if (snapshot.exists()) {
-                                    // Phân tích công thức từ node "foods"
-                                    com.example.cookshare.models.VietnameseFood vietnameseFood = snapshot
-                                            .getValue(com.example.cookshare.models.VietnameseFood.class);
+                                    VietnameseFood vietnameseFood = snapshot.getValue(VietnameseFood.class);
 
                                     if (vietnameseFood != null) {
                                         Recipe recipe = vietnameseFood.toRecipe();
-                                        recipe.setId(snapshot.getKey()); // QUAN TRỌNG: Dùng key của snapshot làm ID
+                                        recipe.setId(snapshot.getKey()); // QUAN TRỌNG
 
-                                        // Khởi chạy Intent với đầy đủ các extras
-                                        // (Giống hệt FavoriteRecipesActivity)
+                                        // Gửi Intent với đầy đủ dữ liệu
                                         Intent intent = new Intent(NotificationsActivity.this, RecipeDetailActivity.class);
                                         intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_ID, recipe.getId());
                                         intent.putExtra(RecipeDetailActivity.EXTRA_RECIPE_TITLE, recipe.getTitle());
@@ -197,7 +218,6 @@ public class NotificationsActivity extends AppCompatActivity {
                                         Toast.makeText(NotificationsActivity.this, "Lỗi: Không thể phân tích công thức", Toast.LENGTH_SHORT).show();
                                     }
                                 } else {
-                                    // Xử lý trường hợp công thức đã bị xóa nhưng thông báo vẫn còn
                                     Log.w(TAG, "Không tìm thấy công thức trong node 'foods' cho recipeId: " + recipeId);
                                     Toast.makeText(NotificationsActivity.this, "Lỗi: Không tìm thấy công thức", Toast.LENGTH_SHORT).show();
                                 }
@@ -211,7 +231,7 @@ public class NotificationsActivity extends AppCompatActivity {
                         });
 
                     }
-
+                    // --- KẾT THÚC LOGIC ĐIỀU HƯỚNG ---
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error handling notification click", e);
@@ -225,15 +245,22 @@ public class NotificationsActivity extends AppCompatActivity {
         }
     }
 
+
     private void loadNotifications() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
-            Toast.makeText(this, "Vui lòng đăng nhập", Toast.LENGTH_SHORT).show();
-            finish();
+            // Nếu adapter chưa được khởi tạo (lỗi lúc onCreate), thì mới toast/finish
+            if (notificationAdapter == null) {
+                Toast.makeText(this, "Vui lòng đăng nhập", Toast.LENGTH_SHORT).show();
+                finish();
+            }
             return;
         }
 
-        showLoading();
+        // Chỉ hiển thị loading nếu adapter chưa có dữ liệu
+        if (notificationAdapter == null || notificationAdapter.getItemCount() == 0) {
+            showLoading();
+        }
 
         databaseService.loadNotifications(new FirebaseDatabaseService.NotificationListCallback() {
             @Override
@@ -315,6 +342,57 @@ public class NotificationsActivity extends AppCompatActivity {
         }
     }
 
+    private void setupTestButton() {
+        // Tạo một FloatingActionButton để test notification
+        // CHỈ DÙNG ĐỂ TEST - XÓA SAU KHI TEST XONG
+        try {
+            com.google.android.material.floatingactionbutton.FloatingActionButton testFab = new com.google.android.material.floatingactionbutton.FloatingActionButton(
+                    this);
+            testFab.setImageResource(android.R.drawable.ic_menu_add);
+            testFab.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            // Add to root view if possible
+            View rootView = findViewById(android.R.id.content);
+            if (rootView instanceof android.view.ViewGroup) {
+                android.view.ViewGroup root = (android.view.ViewGroup) rootView;
+                // Kiểm tra xem nút đã tồn tại chưa để tránh thêm nhiều lần
+                if (root.findViewWithTag("test_fab") == null) {
+                    testFab.setTag("test_fab");
+                    android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                            android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+                    params.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.END;
+                    params.setMargins(16, 16, 16, 16);
+                    testFab.setLayoutParams(params);
+                    root.addView(testFab);
+
+                    testFab.setOnClickListener(v -> {
+                        FirebaseUser currentUser = mAuth.getCurrentUser();
+                        if (currentUser != null) {
+                            Log.d(TAG, "🧪 TEST: Creating test notification for user: " + currentUser.getUid());
+                            databaseService.createNotification(
+                                    currentUser.getUid(),
+                                    "test",
+                                    "Test Notification",
+                                    "Đây là notification test để kiểm tra xem code có hoạt động không!",
+                                    "test-recipe-id");
+                            Toast.makeText(this, "Đã tạo notification test! Refresh để xem.", Toast.LENGTH_SHORT).show();
+                            // Reload notifications sau 1 giây
+                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                loadNotifications();
+                            }, 1000);
+                        } else {
+                            Toast.makeText(this, "Chưa đăng nhập", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up test button", e);
+        }
+    }
 
     @Override
     public boolean onSupportNavigateUp() {
