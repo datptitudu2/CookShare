@@ -95,7 +95,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             String likedByName = (String) notification.get("likedByName");
             if (likedByName != null && !likedByName.isEmpty() && message != null) {
                 // Message đã có tên rồi, không cần làm gì thêm
-                // Nhưng có thể làm đậm tên trong message nếu muốn (cần SpannableString)
+                // Nhưng có thể làm đậm tên trong message nếu muốn
             }
 
             // Set time
