@@ -171,7 +171,7 @@ public class RecipeDetailActivity extends AppCompatActivity {
         categoriesChipGroup = findViewById(R.id.categoriesChipGroup);
         ingredientsContainer = findViewById(R.id.ingredientsContainer);
         instructionsContainer = findViewById(R.id.instructionsContainer);
-        fabLike = findViewById(R.id.fabLike);
+//        fabLike = findViewById(R.id.fabLike);
 
         // Rating section views
         recipeRatingBar = findViewById(R.id.recipeRatingBar);

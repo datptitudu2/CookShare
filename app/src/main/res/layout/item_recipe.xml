@@ -91,11 +91,6 @@
                 android:layout_marginTop="8dp"
                 android:gravity="center_vertical">
 
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:src="@drawable/ic_person"
-                    app:tint="@color/text_secondary" />
 
                 <TextView
                     android:id="@+id/authorName"

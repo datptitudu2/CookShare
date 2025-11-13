@@ -511,19 +511,19 @@
 
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Floating Action Buttons -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabLike"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:src="@android:drawable/btn_star_big_off"
-        app:layout_anchor="@id/appBarLayout"
-        app:layout_anchorGravity="bottom|end"
-        app:tint="@android:color/white"
-        app:backgroundTint="@color/accent_color"
+<!--    &lt;!&ndash; Floating Action Buttons &ndash;&gt;-->
+<!--    <com.google.android.material.floatingactionbutton.FloatingActionButton-->
+<!--        android:id="@+id/fabLike"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_margin="16dp"-->
+<!--        android:src="@android:drawable/btn_star_big_off"-->
+<!--        app:layout_anchor="@id/appBarLayout"-->
+<!--        app:layout_anchorGravity="bottom|end"-->
+<!--        app:tint="@android:color/white"-->
+<!--        app:backgroundTint="@color/accent_color"-->
 
-        app:cornerSize="50%"/>
+<!--        app:cornerSize="50%"/>-->
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
